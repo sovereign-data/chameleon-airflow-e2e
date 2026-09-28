@@ -1,0 +1,18 @@
+[project]
+name = "chameleon-airflow-e2e"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+# Local DAG checks only; the platform image bakes these (docker-tools airflow-3.3.2).
+[dependency-groups]
+dev = [
+    "apache-airflow==3.3.2",
+    "apache-airflow-providers-standard",
+    "astronomer-cosmos~=1.15",
+    "httpx",
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+# Airflow puts dags_folder on sys.path; mirror that for the shared cbs_common.
+pythonpath = ["dags"]
