@@ -27,12 +27,7 @@ with DAG(
 ):
     dbt = DbtTaskGroup(
         group_id="dbt",
-        project_config=ProjectConfig(DBT_DIR, env_vars={
-            "SQE_HOST": os.environ.get("CHAMELEON_SQE_HOST", "sqe.sqe"),
-            "SQE_PORT": "8080",
-            "SQE_HTTP_SCHEME": "http",
-            "DBT_TARGET_CATALOG": "{{ var.value.get('cbs_catalog', 'ws_cbs_energy') }}",
-        }),
+        project_config=ProjectConfig(DBT_DIR),
         profile_config=ProfileConfig(
             profile_name="trino", target_name="dev", profiles_yml_filepath=DBT_DIR / "profiles.yml"
         ),
@@ -41,7 +36,20 @@ with DAG(
         # dbt ls at parse time never connects (profile token defaults to "").
         render_config=RenderConfig(load_method=LoadMode.DBT_LS, dbt_executable_path=DBT,
                                    invocation_mode=InvocationMode.SUBPROCESS),
-        operator_args={"append_env": True, "on_execute_callback": sqe_token_env},
+        # Runtime env for every dbt task: in-cluster SQE (plain HTTP on 8080)
+        # and the workspace catalog. `env` is templated and reaches the dbt
+        # subprocess (ProjectConfig.env_vars did not: dbt fell back to the
+        # profile's public https defaults). The token comes from the callback.
+        operator_args={
+            "append_env": True,
+            "on_execute_callback": sqe_token_env,
+            "env": {
+                "SQE_HOST": os.environ.get("CHAMELEON_SQE_HOST", "sqe.sqe"),
+                "SQE_PORT": "8080",
+                "SQE_HTTP_SCHEME": "http",
+                "DBT_TARGET_CATALOG": "{{ var.value.get('cbs_catalog', 'ws_cbs_energy') }}",
+            },
+        },
     )
 
     land_cbs() >> dbt
