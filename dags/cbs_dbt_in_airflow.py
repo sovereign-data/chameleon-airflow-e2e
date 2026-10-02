@@ -20,6 +20,10 @@ with DAG(
     start_date=pendulum.datetime(2026, 1, 1, tz="Europe/Amsterdam"),
     schedule=None,  # CBS updates monthly; trigger manually for the demo
     catchup=False,
+    # ponytail: serial dbt tasks. Parallel models race on schema creation and
+    # SQE's per-session namespace snapshot goes stale ("namespace does not
+    # exist", tables missing). Raise once SQE refreshes snapshots on DDL.
+    max_active_tasks=1,
     tags=["cbs", "dlt", "dbt", "method-a"],
     doc_md=__doc__,
 ):
