@@ -6,8 +6,6 @@ Airflow owns scheduling, retries, logs and the dbt graph; the platform only
 sees SQL from a service principal.
 """
 
-import os
-
 import pendulum
 from airflow.sdk import DAG
 from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
@@ -36,19 +34,14 @@ with DAG(
         # dbt ls at parse time never connects (profile token defaults to "").
         render_config=RenderConfig(load_method=LoadMode.DBT_LS, dbt_executable_path=DBT,
                                    invocation_mode=InvocationMode.SUBPROCESS),
-        # Runtime env for every dbt task: in-cluster SQE (plain HTTP on 8080)
-        # and the workspace catalog. `env` is templated and reaches the dbt
-        # subprocess (ProjectConfig.env_vars did not: dbt fell back to the
-        # profile's public https defaults). The token comes from the callback.
+        # dbt-trino forces HTTPS for JWT auth, so SQE is reached over its TLS
+        # route (profile default sql.<domain>:443), not plain-HTTP sqe.sqe:8080.
+        # `env` is templated and reaches the dbt subprocess; the token comes
+        # from the callback.
         operator_args={
             "append_env": True,
             "on_execute_callback": sqe_token_env,
-            "env": {
-                "SQE_HOST": os.environ.get("CHAMELEON_SQE_HOST", "sqe.sqe"),
-                "SQE_PORT": "8080",
-                "SQE_HTTP_SCHEME": "http",
-                "DBT_TARGET_CATALOG": "{{ var.value.get('cbs_catalog', 'ws_cbs_energy') }}",
-            },
+            "env": {"DBT_TARGET_CATALOG": "{{ var.value.get('cbs_catalog', 'ws_cbs_energy') }}"},
         },
     )
 
